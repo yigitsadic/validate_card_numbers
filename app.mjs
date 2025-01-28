@@ -1,29 +1,33 @@
 import express from "express";
-import { reverse } from "ramda";
+import { pipe, reverse } from "ramda";
 import {
   canDivideWith10,
   toArray,
-  sumAllAndDoubleEverySecond,
-  turnAllToIntegers,
+  sumAllAndDoubleEverySecondElement,
+  turnToIntegers,
+  toJSON,
 } from "./fns.mjs";
+import { Worker } from "node:worker_threads";
 
 const app = express();
 const port = 4523;
-
-const prepareResponse = (res) => (valid) => res.json({ valid });
+const worker = new Worker("./worker.mjs", { workerData: { port } });
 
 app.get("/validate_card/:cardNumber", (req, res) => {
-  const respondWithJSON = prepareResponse(res);
-
-  Promise.resolve(req.params.cardNumber)
-    .then(reverse)
-    .then(toArray)
-    .then(turnAllToIntegers)
-    .then(sumAllAndDoubleEverySecond)
-    .then(canDivideWith10)
-    .then(respondWithJSON);
+  pipe(
+    reverse,
+    toArray,
+    turnToIntegers,
+    sumAllAndDoubleEverySecondElement,
+    canDivideWith10,
+    toJSON(res)
+  )(req.params.cardNumber);
 });
 
-app.listen(port, () => {
+const srv = app.listen(port, () => {
   console.log(`🚀 Started on port=${port}`);
+
+  worker.postMessage("start my dear");
 });
+
+worker.once("message", () => srv.close());
